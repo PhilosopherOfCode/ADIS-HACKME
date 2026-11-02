@@ -1,5 +1,6 @@
 const $ = s => document.querySelector(s);
 const fmt = ms => { const s = Math.floor(ms / 1000); return [s / 3600 | 0, (s / 60) % 60 | 0, s % 60].map(n => String(n).padStart(2, '0')).join(':'); };
+const fmtP = ms => fmt(ms) + '.' + String(Math.floor(ms % 1000 / 10)).padStart(2, '0');
 const gst = t => new Date(t).toLocaleString('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) + ' GST';
 const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) });
 document.addEventListener('click', e => {
@@ -16,11 +17,13 @@ function live() {
     lastState = s;
     $('#info').textContent = `Status: ${s.status.toUpperCase()} | Elapsed: ${fmt(s.elapsedMs)} | Players: ${s.players} | Messages released: ${s.hintsReleased}`;
     $('#board').checked = s.boardEnabled;
-    $('#claimed').textContent = s.claimed.join(', ') || 'none';
+    $('#claimed').textContent = s.roster.map(p => `${p.username} (${p.cls})`).join(', ') || 'none';
     $('#sinfo').textContent = s.startAt ? 'Scheduled: ' + gst(s.startAt) : 'Not scheduled';
     const solverHead = document.createElement('tr');
-    ['RANK', 'CLASS', 'TIME', 'SOLVED AT'].forEach(v => { const th = document.createElement('th'); th.textContent = v; solverHead.appendChild(th); });
-    const solverRows = s.solvers.length ? s.solvers.map(x => { const tr = document.createElement('tr'); [x.rank, x.cls || '', fmt(x.ms), gst(x.at)].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); }); return tr; }) : [(() => { const tr = document.createElement('tr'), td = document.createElement('td'); td.colSpan = 4; td.textContent = 'No solvers yet.'; tr.appendChild(td); return tr; })()];
+    ['CLASS', '#', 'USERNAME', 'SINCE SIGN-IN', 'EVENT TIME', 'SOLVED AT', 'FLAGS'].forEach(v => { const th = document.createElement('th'); th.textContent = v; solverHead.appendChild(th); });
+    const fo = s.solvers.find(x => x.fastestOverall);
+    $('#fastest').textContent = fo ? `Fastest overall: ${fo.username} (${fo.cls}) in ${fmtP(fo.since)}` : '';
+    const solverRows = s.solvers.length ? s.solvers.map(x => { const tr = document.createElement('tr'); [x.cls || '', x.classRank, x.username, fmtP(x.since), fmt(x.ms), gst(x.at), [x.fastestOverall && 'FASTEST OVERALL', x.fastestInClass && 'FASTEST IN CLASS'].filter(Boolean).join(' / ')].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); }); return tr; }) : [(() => { const tr = document.createElement('tr'), td = document.createElement('td'); td.colSpan = 7; td.textContent = 'No solvers yet.'; tr.appendChild(td); return tr; })()];
     $('#sv').replaceChildren(solverHead, ...solverRows);
     const top = $('#topGuess');
     if (s.closestGuess) {
@@ -40,7 +43,7 @@ function live() {
     tableRows('best', ['CLASS', 'GUESS', 'SCORE', 'TIME'], s.bestGuesses || [], x => [x.cls || '', x.guess, `${x.tier} (${x.score}%)`, fmt(x.ms)]);
     const waterfall = [...(s.waterfall || [])];
     if ($('#waterfallSort').value === 'class') waterfall.sort((a, b) => (a.cls || '').localeCompare(b.cls || '', undefined, { numeric: true }) || Date.parse(b.at) - Date.parse(a.at));
-    tableRows('waterfall', ['AT', 'CLASS', 'GUESS', 'SCORE', 'ELAPSED'], waterfall, x => [gst(x.at), x.cls || '', x.guess, `${x.tier} (${x.score}%)`, fmt(x.ms)]);
+    tableRows('waterfall', ['AT', 'CLASS', 'USER', 'GUESS', 'SCORE', 'ELAPSED'], waterfall, x => [gst(x.at), x.cls || '', x.username || '', x.guess, `${x.tier} (${x.score}%)`, fmt(x.ms)]);
     $('#msgInfo').textContent = s.hints && s.hints.length ? `Released: ${s.hints.map(h => `[${h.target === 'all' ? 'ALL' : h.target}] ${h.text}`).join(' | ')}` : 'Nothing released yet.';
   };
   $('#waterfallSort').addEventListener('change', () => lastState && render(lastState));
@@ -60,7 +63,12 @@ document.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', (
 $('#releaseMessage').addEventListener('click', async () => { const text = $('#message').value.trim(), target = $('#messageTarget').value.trim() || 'ALL'; if (!text) return; const r = await post('/api/admin/message', { text, target }); if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Could not send message.'); return; } $('#message').value = ''; $('#messageTarget').value = 'ALL'; });
 $('#ss').addEventListener('click', async () => { const v = $('#sched').value; if (!v) return alert('Pick a date and time (GST)'); const r = await post('/api/admin/config', { startAt: Date.parse(v + ':00+04:00') }); if (!r.ok) alert('Pick a future time, and schedule only before the event starts.'); });
 $('#sc').addEventListener('click', () => post('/api/admin/config', { startAt: null }));
-$('#rb').addEventListener('click', async () => { const r = await post('/api/admin/release', { cls: $('#rel').value.trim().toUpperCase() }); if (!r.ok) alert('That class is not claimed.'); $('#rel').value = ''; });
+$('#dl').addEventListener('click', async () => {
+  const r = await fetch('/api/admin/export', { cache: 'no-store' });
+  if (!r.ok) return alert('Could not download statistics.');
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: 'passtrace-statistics.csv' });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
 $('#board').addEventListener('change', e => post('/api/admin/config', { board: e.target.checked }));
 $('#lo').addEventListener('click', async () => { await post('/api/admin/logout'); location.reload(); });
 fetch('/api/admin/me').then(r => r.ok && live());

@@ -4,3 +4,4 @@
 node_modules/
 data/event-state.json
 npm-debug.log*
+data/statistics.csv

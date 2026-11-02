@@ -185,3 +185,7 @@ footer{text-align:center;font-size:10px;color:var(--d);padding:6px 8px 10px;opac
 .waterfall-tools select{background:var(--bg);color:var(--g);border:1px solid var(--d);font:inherit;padding:3px 6px}
 .admin-logout{display:flex;justify-content:flex-end}
 @media(max-width:800px){.admin-grid{grid-template-columns:1fr}.admin-waterfall{grid-column:auto}}
+
+.field{display:block;width:100%;box-sizing:border-box;background:#000;border:1px solid var(--d);color:var(--g);font:inherit;padding:10px;margin:4px 0}
+#loginForm .field:focus{outline:1px solid var(--g)}
+#signout{margin-left:auto}

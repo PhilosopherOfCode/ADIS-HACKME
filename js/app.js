@@ -1,11 +1,12 @@
-const $ = s => document.querySelector(s), out = $('#out'), inp = $('#in');
+﻿const $ = s => document.querySelector(s), out = $('#out'), inp = $('#in');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = ms => { const s = Math.floor(ms / 1000); return [s / 3600 | 0, (s / 60) % 60 | 0, s % 60].map(n => String(n).padStart(2, '0')).join(':'); };
 const GST = { timeZone: 'Asia/Dubai' }; // Gulf Standard Time, UTC+4
 const gstTime = t => new Date(t).toLocaleTimeString('en-GB', { ...GST, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) + ' GST';
 const gstDay = t => new Date(t).toLocaleString('en-GB', { ...GST, weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) + ' GST';
 const LABEL = { waiting: 'EVENT NOT STARTED', running: 'EVENT LIVE', paused: 'EVENT PAUSED', ended: 'EVENT ENDED' };
-let st = null, puz = null, solved = false, cls = '', rainT, finalShown = false;
+let st = null, puz = null, solved = false, cls = '', username = '', rainT, finalShown = false;
+const PX_MAX = 10;
 
 document.addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -58,7 +59,7 @@ function bar() {
     $('#bar').textContent = st.status === 'waiting' ? (l != null ? `STARTS IN ${fmt(l)} | ${st.players} online` : `EVENT NOT STARTED | ${st.players} online`) : `${LABEL[st.status]} | ${fmt(st.elapsedMs)} | ${st.players} online`;
     const c = $('#cd'); if (c) c.textContent = l != null ? fmt(l) : '--:--:--';
     const sc = $('#sched'); if (sc) sc.textContent = st.startAt ? `Starts at ${gstDay(st.startAt)}` : 'Start time will be announced by the admin';
-    const m = $('#mycls'); if (m) m.textContent = cls ? `Class ${cls}` : '';
+    const m = $('#mycls'); if (m) m.textContent = cls ? `${username} · Class ${cls}` : '';
   }
   boardUI(); const f = $('#fb'); if (f) f.textContent = st && st.first != null ? `FIRST SUBMISSION RECEIVED at ${fmt(st.first)} by ${st.firstCls || 'a class'}` : '';
 }
@@ -67,7 +68,7 @@ function proximityBoard() {
   const rows = st && st.proximityBoard || [];
   return rows.length ? `<div class="proximity-board"><h3>CLASS PROGRESS</h3><table class="lbt"><tr><th>RANK</th><th>CLASS</th><th>PROXIMITY</th><th>STATUS</th></tr>${rows.map(x => `<tr><td>#${x.rank}</td><td>${esc(x.cls)}</td><td>${x.score}%</td><td>${x.solved ? `SOLVED · ${fmt(x.ms)}` : (x.tier || 'IN PLAY')}</td></tr>`).join('')}</table></div>` : '<div class="proximity-board"><h3>CLASS PROGRESS</h3><p class="dim">No scored guesses yet.</p></div>';
 }
-function boardUI() { const b = $('#board'); if (b) b.innerHTML = st && st.board && st.board.length ? '<b>LEADERBOARD</b><br>' + st.board.map(x => `#${x.rank} ${esc(x.cls || '')} ${fmt(x.ms)}`).join('<br>') : ''; const p = $('#proximityBoard'); if (p) p.innerHTML = proximityBoard(); }
+function boardUI() { const b = $('#board'); if (b) b.innerHTML = st && st.board && st.board.length ? '<b>LEADERBOARD</b><br>' + st.board.map(x => `#${x.rank} ${esc(x.username || '')} ${esc(x.cls || '')} ${fmt(x.ms)}`).join('<br>') : ''; const p = $('#proximityBoard'); if (p) p.innerHTML = proximityBoard(); }
 const MSG = { running: '>> EVENT STARTED. Systems unlocked.', paused: '>> EVENT PAUSED.', ended: '>> EVENT ENDED.', waiting: '>> EVENT RESET. Awaiting start.' };
 function onState(d) {
   d.rx = Date.now(); const o = st; st = d; bar();
@@ -161,13 +162,13 @@ function waiting() {
   <h3>Rules and regulations</h3>
   <ol class="rules">
     <li>Everything here is fictional: the person, the websites, the companies and the photos.</li>
-    <li>Select your class. Each class can be claimed by one player, and claimed classes are greyed out.</li>
+    <li>Sign in with a username and your class. Any number of players can join from the same class. Use the SIGN OUT button to leave.</li>
     <li>The event opens automatically at the start time set by the admin, shown above in GST. The clock starts for everyone at the same moment.</li>
     <li>When it starts, three fictional public profiles unlock: Grammie, Linkout and Hooked.</li>
     <li>Investigate them, correlate what you find, and work out the weak password the person chose.</li>
-    <li>You can solve once. Rank is decided by finishing time.</li>
-    <li>Proximity: type <b>proximity</b> to see the percentage for your latest, hottest and coldest guesses. You get 5 proximity checks.</li>
-    <li>The event ends automatically once players from ${st.limit || 3} different classes solve it. The final leaderboard, challenge password, precautions and tips are then shown to everyone.</li>
+    <li>You can solve once. Rank is decided by the time from your sign-in to your correct answer.</li>
+    <li>Proximity: type <b>proximity</b> to see the percentage for your latest, hottest and coldest guesses. You get ${PX_MAX} proximity checks.</li>
+    <li>There is no limit on the number of winners. The admin ends the event, and the final leaderboard, challenge password, precautions and tips are then shown to everyone.</li>
     <li>Admins can release hints or messages live. Type <b>hints</b> to read released messages.</li>
     <li>The first correct submission is announced live to all players.</li>
     <li>Play fair: do not share answers, and do not attack the server or any real person or account.</li>
@@ -189,7 +190,7 @@ function desk() {
 }
 
 // ---- commands ----
-const COMMANDS = ['legend: how this exercise works', 'hints: show released messages', 'status: event, timer and message status', 'submit <code>: submit your answer', 'proximity: latest, hottest and coldest guesses with percentages (5 checks)', 'clear: clear the screen'];
+const COMMANDS = ['legend: how this exercise works', 'hints: show released messages', 'status: event, timer and message status', 'submit <code>: submit your answer', `proximity: latest, hottest and coldest guesses with percentages (${PX_MAX} checks)`, 'clear: clear the screen'];
 const commandList = $('#commandList');
 if (commandList) COMMANDS.forEach(command => {
   const item = document.createElement('div');
@@ -199,7 +200,7 @@ if (commandList) COMMANDS.forEach(command => {
 const C = {
   legend: () => ['PassTrace // cybersecurity awareness exercise', 'All people, sites and photos here are fictional and made for this exercise.', 'Three public profiles belong to one fictional person. Open each one and look closely.', 'Work out the weak password they chose, then: submit <code>', 'COMMANDS:', ...COMMANDS],
   hints: () => st.hints.length ? st.hints.map(h => `MESSAGE ${h.n}: ${h.text}`) : ['No messages released yet.'],
-  status: () => [`Event:  ${LABEL[st.status]}`, `Elapsed: ${fmt(st.elapsedMs)}`, `Player: ${solved ? 'SOLVED' : 'ACTIVE'} (${cls})`, `Time:   ${gstTime(Date.now())}`,
+  status: () => [`Event:  ${LABEL[st.status]}`, `Elapsed: ${fmt(st.elapsedMs)}`, `Player: ${solved ? 'SOLVED' : 'ACTIVE'} (${username}, ${cls})`, `Time:   ${gstTime(Date.now())}`,
     `Messages: ${st.hints.length} released`],
   clear: () => { out.innerHTML = ''; return []; }
 };
@@ -211,14 +212,14 @@ async function proximity() {
   const r = await fetch('/api/proximity', { method: 'POST' }), j = await r.json().catch(() => ({}));
   if (!r.ok) {
     log(j.error || 'ERROR', 'err');
-    if (Number.isInteger(j.checksLeft)) log(`${j.checksLeft} of 5 proximity checks left`, 'dim');
+    if (Number.isInteger(j.checksLeft)) log(`${j.checksLeft} of ${PX_MAX} proximity checks left`, 'dim');
     return;
   }
   const line = (l, x) => log(`${l}: ${x.guess}   [${x.tier} ${x.score}%]`, x.tier === 'COLD' ? 'dim' : 'hint');
   line('LATEST guess', j.latest);
   line('HOTTEST guess', j.hot);
   if (j.cold.guess !== j.hot.guess) line('COLDEST guess', j.cold); else log('(only one guess so far, so it is both your hottest and coldest)', 'dim');
-  log(`${j.checksLeft} of 5 proximity checks left`, 'dim');
+  log(`${j.checksLeft} of ${PX_MAX} proximity checks left`, 'dim');
   } finally { proximityPending = false; }
 }
 async function submit(code) {
@@ -236,7 +237,7 @@ inp.addEventListener('keydown', async e => {
   if (e.key !== 'Enter') return;
   const v = inp.value.trim(); inp.value = ''; if (!v) return;
   log('> ' + v, 'dim');
-  if (!cls) return log('Select your class first.', 'err');
+  if (!cls) return log('Sign in first.', 'err');
   if (!st) return log('Connecting... try again.', 'err');
   const [cmd, ...rest] = v.split(/\s+/);
   if (cmd.toLowerCase() === 'submit') return submit(rest.join(' '));
@@ -278,7 +279,7 @@ function showFinal() {
 function showWinner(j) {
   startRain();
   const w = $('#win'); w.hidden = false;
-  w.innerHTML = `<div class="box"><h2 class="glitch" data-t="ACCESS GRANTED">ACCESS GRANTED</h2><p>You solved the challenge.</p><p>Rank: <b>#${j.rank}</b> &nbsp; Time: <b>${fmt(j.ms)}</b></p>${TIPS}<p class="dim">The event continues until players from ${st.limit || 3} different classes solve it.</p><button id="dismissWin" type="button">RETURN TO TERMINAL</button></div>`;
+  w.innerHTML = `<div class="box"><h2 class="glitch" data-t="ACCESS GRANTED">ACCESS GRANTED</h2><p>You solved the challenge.</p><p>Rank: <b>#${j.rank}</b> &nbsp; Event time: <b>${fmt(j.ms)}</b> &nbsp; Time since sign-in: <b>${fmt(j.sinceLoginMs)}</b></p>${TIPS}<p class="dim">The event continues until the admin ends it.</p><button id="dismissWin" type="button">RETURN TO TERMINAL</button></div>`;
   $('#dismissWin').addEventListener('click', () => { w.hidden = true; stopRain(); });
 }
 async function win(j) {
@@ -291,32 +292,39 @@ async function win(j) {
   if (st && st.status === 'ended') showFinal(); else showWinner(j);
 }
 
-// ---- class selection + intro ----
-function pickClass(taken) {
+// ---- sign in (username + class) + intro ----
+function pickLogin() {
   return new Promise(res => {
     const o = $('#cls'); o.hidden = false;
-    const rows = [9, 10, 11, 12].map(g => `<div class="crow${g === 10 ? ' crow-eight' : ''}">${(g === 10 ? 'ABCDEFGH' : 'ABCDEFG').split('').map(l => `<button data-c="${g}${l}">${g}${l}</button>`).join('')}</div>`).join('');
-    o.innerHTML = `<div class="box"><h2 class="glitch" data-t="SELECT YOUR CLASS">SELECT YOUR CLASS</h2><p class="dim">The event is class wise. Each class can be claimed once. Greyed-out classes are already taken.</p>${rows}<p id="cmsg" class="err"></p></div>`;
-    const mark = t => o.querySelectorAll('button').forEach(b => { b.disabled = t.includes(b.dataset.c); });
-    mark(taken);
-    const iv = setInterval(() => fetch('/api/classes').then(r => r.json()).then(r => mark(r.taken)).catch(() => {}), 3000);
-    o.querySelectorAll('button').forEach(b => b.addEventListener('click', async () => {
-      const r = await fetch('/api/class', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cls: b.dataset.c }) });
+    const opts = [9, 10, 11, 12].flatMap(g => (g === 10 ? 'ABCDEFGH' : 'ABCDEFG').split('').map(l => `<option value="${g}${l}">${g}${l}</option>`)).join('');
+    o.innerHTML = `<form class="box" id="loginForm"><h2 class="glitch" data-t="SIGN IN">SIGN IN</h2><p class="dim">Enter a username and pick your class. Your time is counted from the moment you sign in.</p><p><input id="uname" class="field" maxlength="20" autocomplete="off" spellcheck="false" placeholder="username" aria-label="username"></p><p><select id="ucls" class="field" aria-label="class"><option value="">select class</option>${opts}</select></p><p><button type="submit">ENTER</button></p><p id="cmsg" class="err"></p></form>`;
+    $('#uname').focus();
+    $('#loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: $('#uname').value, cls: $('#ucls').value }) });
       const j = await r.json().catch(() => ({}));
-      if (r.ok && j.ok) { cls = j.cls; clearInterval(iv); o.hidden = true; res(); }
-      else { $('#cmsg').textContent = j.error === 'CLASS TAKEN' ? 'That class was just taken. Pick another.' : 'Could not select that class. Try again.'; if (j.error === 'CLASS TAKEN') b.disabled = true; }
-    }));
+      if (r.ok && j.ok) { cls = j.cls; username = j.username; o.hidden = true; res(); }
+      else $('#cmsg').textContent = j.error === 'INVALID USERNAME' ? 'Username must be 2-20 letters, numbers, spaces, dots, dashes or underscores.' : j.error === 'INVALID CLASS' ? 'Select your class.' : 'Could not sign in. Try again.';
+    });
   });
 }
 async function ensureClass() {
-  const r = await fetch('/api/classes').then(x => x.json()).catch(() => null);
-  if (r && r.mine) { cls = r.mine; return; }
-  cls = ''; await pickClass(r ? r.taken : []);
+  const r = await fetch('/api/me').then(x => x.json()).catch(() => null);
+  if (r && r.mine) { cls = r.mine; username = r.username; $('#signout').hidden = false; return; }
+  cls = ''; username = ''; $('#signout').hidden = true;
+  await pickLogin(); $('#signout').hidden = false;
+  try { solved = (await (await fetch('/api/event')).json()).solved; } catch {}
 }
+$('#signout').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+  cls = ''; username = ''; solved = false; $('#win').hidden = true; stopRain(); out.innerHTML = '';
+  await ensureClass();
+  log(`Signed in as ${username} (${cls}).`, 'ok'); inp.focus();
+});
 (async () => {
   await ensureClass();
   await type('PassTrace // cybersecurity awareness exercise');
   await type('All people, sites and photos are fictional and created for this exercise.', 'dim');
-  await type(`Class ${cls} registered. Commands are listed above.`);
+  await type(`${username} (${cls}) signed in. Commands are listed above.`);
   inp.focus();
 })();
